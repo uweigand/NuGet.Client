@@ -3,7 +3,7 @@
 
 using Microsoft.Build.Framework;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     /// <summary>
     /// A mock implementation of <see cref="SdkResolverContext"/> that uses a <see cref="MockSdkLogger"/>.

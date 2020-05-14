@@ -9,7 +9,7 @@ using Microsoft.Build.Framework;
 using NuGet.Common;
 using Xunit;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     /// <summary>
     /// Tests for LazyFormattedEventArgs

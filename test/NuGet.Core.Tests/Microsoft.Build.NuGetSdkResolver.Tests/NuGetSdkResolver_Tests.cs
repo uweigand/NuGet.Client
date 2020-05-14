@@ -9,7 +9,7 @@ using NuGet.Versioning;
 using Xunit;
 using SdkResolverContextBase = Microsoft.Build.Framework.SdkResolverContext;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     public class NuGetSdkResolverTests
     {

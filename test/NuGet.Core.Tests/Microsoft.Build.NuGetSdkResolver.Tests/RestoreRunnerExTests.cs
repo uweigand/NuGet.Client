@@ -14,7 +14,7 @@ using NuGet.Test.Utility;
 using NuGet.Versioning;
 using Xunit;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     public class RestoreRunnerExTests
     {

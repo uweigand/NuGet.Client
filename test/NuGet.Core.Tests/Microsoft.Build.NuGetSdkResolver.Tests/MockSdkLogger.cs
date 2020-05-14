@@ -4,7 +4,7 @@
 using System.Collections.Generic;
 using Microsoft.Build.Framework;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     /// <summary>
     /// A mock implementation of <see cref="SdkLogger"/> that stores logged messages.

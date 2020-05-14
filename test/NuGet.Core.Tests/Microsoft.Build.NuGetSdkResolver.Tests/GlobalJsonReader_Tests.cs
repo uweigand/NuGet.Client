@@ -9,7 +9,7 @@ using FluentAssertions;
 using NuGet.Test.Utility;
 using Xunit;
 
-namespace Microsoft.Build.NuGetSdkResolver.Test
+namespace Microsoft.Build.NuGetSdkResolver.Tests
 {
     public class GlobalJsonReaderTests
     {
