@@ -157,7 +157,7 @@ namespace NuGet.Commands
                 // Add all fallbacks in order.
                 orderedCriteriaSets.AddRange(assetTargetFallback.Fallback.Select(e => CreateCriteria(targetGraph, e)));
             }
-            else if(multipleCompatibilityFramework != null)
+            else if (multipleCompatibilityFramework != null)
             {
                 // Add the root project framework first.
                 orderedCriteriaSets.Add(CreateCriteria(targetGraph, multipleCompatibilityFramework.RootFramework));
