@@ -390,7 +390,7 @@ namespace NuGet.PackageManagement.VisualStudio
             var platformVersion = await BuildProperties.GetPropertyValueAsync(
                 ProjectBuildProperties.TargetPlatformVersion);
             var platformMinVersion = await BuildProperties.GetPropertyValueAsync(
-                ProjectBuildProperties.CLRSupport);
+                ProjectBuildProperties.TargetPlatformMinVersion);
             var targetFrameworkMoniker = await BuildProperties.GetPropertyValueAsync(
                 ProjectBuildProperties.TargetFrameworkMoniker);
 
