@@ -103,41 +103,56 @@ namespace NuGet.Protocol
                 return Enumerable.Empty<PackageSearchMetadataRegistration>();
             }
 
-            var results = new ConcurrentBag<PackageSearchMetadataRegistration>();
+            IEnumerable<Task<IEnumerable<PackageSearchMetadataRegistration>>> tasks = registrationIndex.Items
+                .Select(
+                    registrationPage =>ProcessRegistrationPageAsync(
+                        packageId,
+                        includePrerelease,
+                        includeUnlisted,
+                        range,
+                        log,
+                        registrationPage,
+                        metadataCache,
+                        registrationUri,
+                        httpSourceCacheContext,
+                        token));
 
-            IEnumerable<Task> tasks = registrationIndex.Items.Select(async registrationPage =>
+            IEnumerable<PackageSearchMetadataRegistration>[] results = await Task.WhenAll(tasks);
+
+            return results.SelectMany(result => result).ToList();
+        }
+
+        private async Task<IEnumerable<PackageSearchMetadataRegistration>> ProcessRegistrationPageAsync(string packageId, bool includePrerelease, bool includeUnlisted, VersionRange range, ILogger log, RegistrationPage registrationPage, MetadataReferenceCache metadataCache, Uri registrationUri, HttpSourceCacheContext httpSourceCacheContext, CancellationToken token)
+        {
+            if (registrationPage == null)
             {
-                if (registrationPage == null)
+                throw new InvalidDataException(registrationUri.AbsoluteUri);
+            }
+
+            var lower = NuGetVersion.Parse(registrationPage.Lower);
+            var upper = NuGetVersion.Parse(registrationPage.Upper);
+
+            if (range.DoesRangeSatisfy(lower, upper))
+            {
+                if (registrationPage.Items == null)
                 {
-                    throw new InvalidDataException(registrationUri.AbsoluteUri);
+                    var rangeUri = registrationPage.Url;
+                    var leafRegistrationPage = await GetRegistrationIndexPageAsync(_client, rangeUri, packageId, lower, upper, httpSourceCacheContext, log, token);
+
+                    if (registrationPage == null)
+                    {
+                        throw new InvalidDataException(registrationUri.AbsoluteUri);
+                    }
+
+                    return ProcessRegistrationPage(leafRegistrationPage, range, includePrerelease, includeUnlisted, metadataCache);
                 }
-
-                var lower = NuGetVersion.Parse(registrationPage.Lower);
-                var upper = NuGetVersion.Parse(registrationPage.Upper);
-
-                if (range.DoesRangeSatisfy(lower, upper))
+                else
                 {
-                    if (registrationPage.Items == null)
-                    {
-                        var rangeUri = registrationPage.Url;
-                        var leafRegistrationPage = await GetRegistrationIndexPageAsync(_client, rangeUri, packageId, lower, upper, httpSourceCacheContext, log, token);
-
-                        if (registrationPage == null)
-                        {
-                            throw new InvalidDataException(registrationUri.AbsoluteUri);
-                        }
-
-                        ProcessRegistrationPage(leafRegistrationPage, results, range, includePrerelease, includeUnlisted, metadataCache);
-                    }
-                    else
-                    {
-                        ProcessRegistrationPage(registrationPage, results, range, includePrerelease, includeUnlisted, metadataCache);
-                    }
+                    return ProcessRegistrationPage(registrationPage, range, includePrerelease, includeUnlisted, metadataCache);
                 }
-            });
+            }
 
-            await Task.WhenAll(tasks);
-            return results.OrderBy(result => result.Version.Version).ToList();
+            return Array.Empty<PackageSearchMetadataRegistration>();
         }
 
         /// <summary>
@@ -273,6 +288,32 @@ namespace NuGet.Protocol
                     catalogEntry.PackageDetailsUrl = _packageDetailsUriResource?.GetUri(catalogEntry.PackageId, catalogEntry.Version);
                     catalogEntry = metadataCache.GetObject(catalogEntry);
                     results.Add(catalogEntry);
+                }
+            }
+        }
+
+        private IEnumerable<PackageSearchMetadataRegistration> ProcessRegistrationPage(
+            RegistrationPage registrationPage,
+            VersionRange range,
+            bool includePrerelease,
+            bool includeUnlisted,
+            MetadataReferenceCache metadataCache)
+        {
+            foreach (RegistrationLeafItem registrationLeaf in registrationPage.Items)
+            {
+                PackageSearchMetadataRegistration catalogEntry = registrationLeaf.CatalogEntry;
+                NuGetVersion version = catalogEntry.Version;
+                bool listed = catalogEntry.IsListed;
+
+                if (range.Satisfies(catalogEntry.Version)
+                    && (includePrerelease || !version.IsPrerelease)
+                    && (includeUnlisted || listed))
+                {
+                    catalogEntry.ReportAbuseUrl = _reportAbuseResource?.GetReportAbuseUrl(catalogEntry.PackageId, catalogEntry.Version);
+                    catalogEntry.PackageDetailsUrl = _packageDetailsUriResource?.GetUri(catalogEntry.PackageId, catalogEntry.Version);
+                    catalogEntry = metadataCache.GetObject(catalogEntry);
+
+                    yield return catalogEntry;
                 }
             }
         }
