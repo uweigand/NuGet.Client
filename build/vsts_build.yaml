@@ -31,14 +31,6 @@ jobs:
         CheckVstsPersonalAccessToken -VstsPersonalAccessToken $(VstsPersonalAccessToken)
 
   - task: PowerShell@1
-    displayName: "Initialize Git Commit Status on GitHub"
-    inputs:
-      scriptType: "inlineScript"
-      inlineScript: |
-        . $(Build.Repository.LocalPath)\\scripts\\utils\\PostGitCommitStatus.ps1
-        InitializeAllTestsToPending -PersonalAccessToken $(NuGetLurkerPersonalAccessToken) -CommitSha $(Build.SourceVersion)
-
-  - task: PowerShell@1
     displayName: "Update Build Number"
     name: "updatebuildnumber"
     inputs:
@@ -233,16 +225,6 @@ jobs:
       ArtifactType: "Container"
     condition: "or(failed(), canceled())"
 
-  - task: PowerShell@1
-    displayName: "Initialize Git Commit Status on GitHub"
-    inputs:
-      scriptType: "inlineScript"
-      arguments: "-VstsPersonalAccessToken $(VstsPersonalAccessToken)"
-      inlineScript: |
-        . $(Build.Repository.LocalPath)\\scripts\\utils\\PostGitCommitStatus.ps1
-        SetCommitStatusForTestResult -PersonalAccessToken $(NuGetLurkerPersonalAccessToken) -CommitSha $(Build.SourceVersion) -VstsPersonalAccessToken $(VstsPersonalAccessToken) -TestName "$env:AGENT_JOBNAME"
-    condition: "always()"
-
 - job: Tests_On_Linux
   dependsOn: Initialize_Build
   timeoutInMinutes: 45
@@ -317,17 +299,6 @@ jobs:
       ArtifactName: "$(Agent.JobName)"
       ArtifactType: "Container"
     condition: "or(failed(), canceled())"
-
-  - task: PowerShell@2
-    displayName: "Initialize Git Commit Status on GitHub"
-    inputs:
-      targetType: "inline"
-      arguments: "-VstsPersonalAccessToken $(VstsPersonalAccessToken)"
-      script: |
-        . $(Build.Repository.LocalPath)/scripts/utils/PostGitCommitStatus.ps1
-        SetCommitStatusForTestResult -PersonalAccessToken $(NuGetLurkerPersonalAccessToken) -VstsPersonalAccessToken $(VstsPersonalAccessToken) -CommitSha $(Build.SourceVersion) -TestName "Tests On Linux"
-      failOnStderr: "true"
-    condition: "always()"
 
 - job: Tests_On_Mac
   dependsOn:
@@ -408,17 +379,6 @@ jobs:
       ArtifactName: "$(Agent.JobName)"
       ArtifactType: "Container"
     condition: "or(failed(), canceled())"
-
-  - task: PowerShell@2
-    displayName: "Initialize Git Commit Status on GitHub"
-    inputs:
-      targetType: "inline"
-      arguments: "-VstsPersonalAccessToken $(VstsPersonalAccessToken)"
-      script: |
-        . $(Build.Repository.LocalPath)/scripts/utils/PostGitCommitStatus.ps1
-        SetCommitStatusForTestResult -PersonalAccessToken $(NuGetLurkerPersonalAccessToken) -VstsPersonalAccessToken $(VstsPersonalAccessToken) -CommitSha $(Build.SourceVersion) -TestName "Tests On Mac"
-      failOnStderr: "true"
-    condition: "always()"
 
 - job: End_To_End_Tests_On_Windows
   dependsOn:
@@ -582,16 +542,6 @@ jobs:
       mergeTestResults: "true"
       testRunTitle: "NuGet.Client Apex Tests On Windows"
     condition: "succeededOrFailed()"
-
-  - task: PowerShell@1
-    displayName: "Initialize Git Commit Status on GitHub"
-    inputs:
-      arguments: "-VstsPersonalAccessToken $(VstsPersonalAccessToken)"
-      scriptType: "inlineScript"
-      inlineScript: |
-        . $(Build.Repository.LocalPath)\\scripts\\utils\\PostGitCommitStatus.ps1
-        SetCommitStatusForTestResult -PersonalAccessToken $(NuGetLurkerPersonalAccessToken) -VstsPersonalAccessToken $(VstsPersonalAccessToken) -CommitSha $(Build.SourceVersion) -TestName "Apex Tests On Windows"
-    condition: "always()"
 
   - task: PowerShell@1
     displayName: "Kill running instances of DevEnv"
