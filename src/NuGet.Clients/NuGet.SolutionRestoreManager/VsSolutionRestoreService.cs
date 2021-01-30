@@ -92,7 +92,7 @@ namespace NuGet.SolutionRestoreManager
 
             // returned task completes when scheduled restore operation completes.
             var restoreTask = _restoreWorker.ScheduleRestoreAsync(
-                SolutionRestoreRequest.OnUpdate(),
+                SolutionRestoreRequest.OnUpdate(projectUniqueName + " not from nomination"),
                 token);
 
             return await restoreTask;
@@ -183,12 +183,12 @@ namespace NuGet.SolutionRestoreManager
                     var dgSpecOutputPath = GetProjectOutputPath(projectDirectory, projectIntermediatePath);
                     dgSpec = CreateMinimalDependencyGraphSpec(projectUniqueName, dgSpecOutputPath);
                 }
-
                 _projectSystemCache.AddProjectRestoreInfo(projectNames, dgSpec, nominationErrors);
+                NuGetFileLogger.DefaultInstance.Write($"VSSolutionRestoreService - add a project to project-system cache {projectUniqueName}");
 
                 // returned task completes when scheduled restore operation completes.
                 var restoreTask = _restoreWorker.ScheduleRestoreAsync(
-                    SolutionRestoreRequest.OnUpdate(),
+                    SolutionRestoreRequest.OnUpdate(projectUniqueName),
                     token);
 
                 return await restoreTask;
