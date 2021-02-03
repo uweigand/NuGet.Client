@@ -313,6 +313,50 @@ namespace NuGet.Packaging.Test
                 }
             }
         }
+        [Fact]
+        public async Task InstallFromSourceAsync_DebugVerification_InstallsForV3Async()
+        {
+            // Arrange
+            using (var root = TestDirectory.Create())
+            {
+                string packageFile = "";
+                if (RuntimeEnvironmentHelper.IsLinux)
+                {
+                    packageFile = Path.Combine("Home/henli/packages", "postsharp.redist.6.3.6-preview.nupkg");
+                }
+                else
+                {
+                    packageFile = Path.Combine("C:\\Users\\henli\\Downloads", "postsharp.redist.6.3.6-preview.nupkg");
+                }
+
+                var packageIdentity = new PackageIdentity("postsharp.patterns.common.redist", NuGetVersion.Parse("6.3.6-preview"));
+                var pathResolver = new VersionFolderPathResolver(root);
+
+                ClientPolicyContext clientPolicyContext = new ClientPolicyContext(SignatureValidationMode.Accept, null);
+
+                using (var packageDownloader = new LocalPackageArchiveDownloader(
+                    root,
+                    packageFile,
+                    packageIdentity,
+                    NullLogger.Instance))
+                {
+                    // Act
+                    await PackageExtractor.InstallFromSourceAsync(
+                        packageIdentity,
+                        packageDownloader,
+                        pathResolver,
+                        new PackageExtractionContext(
+                            packageSaveMode: PackageSaveMode.Defaultv3,
+                            xmlDocFileSaveMode: XmlDocFileSaveMode.None,
+                            clientPolicyContext: clientPolicyContext,
+                            logger: NullLogger.Instance),
+                        CancellationToken.None);
+
+                    // Assert
+                    Assert.False(File.Exists(Path.Combine(root, "postsharp.patterns.common.redist", "6.3.6-preview")));
+                }
+            }
+        }
 
         [Fact]
         public async Task InstallFromSourceAsync_NupkgWithDifferentName_InstallsForV3Async()
