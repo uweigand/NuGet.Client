@@ -96,13 +96,22 @@ steps:
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /bl"
 
-- task: PublishBuildArtifacts@1
-  displayName: "Publish binlog as artifact"
+- task: PowerShell@1
+  displayName: "Find binlog file"
   inputs:
-    PathtoPublish: "$(Build.Repository.LocalPath)\\msbuild.binlog"
-    ArtifactName: "binlog of build"
-    ArtifactType: "Container"
+    scriptType: "inlineScript"
+    inlineScript: |
+      cd $(Build.Repository.LocalPath)
+      Get-ChildItem -Path .\ -Filter *.binlog -Recurse
   condition: "succeeded()"
+
+# - task: PublishBuildArtifacts@1
+#   displayName: "Publish binlog as artifact"
+#   inputs:
+#     PathtoPublish: "$(Build.Repository.LocalPath)\\msbuild.binlog"
+#     ArtifactName: "binlog of build"
+#     ArtifactType: "Container"
+#   condition: "succeeded()"
 
 - task: PublishBuildArtifacts@1
   displayName: "Publish NuGet.Versioning pdb as artifact"
