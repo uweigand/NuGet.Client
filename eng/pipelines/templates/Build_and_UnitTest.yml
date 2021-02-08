@@ -94,7 +94,23 @@ steps:
     solution: "build\\build.proj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
-    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true"
+    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /bl"
+
+- task: PublishBuildArtifacts@1
+  displayName: "Publish binlog as artifact"
+  inputs:
+    PathtoPublish: "$(Build.Repository.LocalPath)\\msbuild.binlog"
+    ArtifactName: "binlog of build"
+    ArtifactType: "Container"
+  condition: "succeeded()"
+
+- task: PublishBuildArtifacts@1
+  displayName: "Publish NuGet.Versioning pdb as artifact"
+  inputs:
+    PathtoPublish: "$(Build.Repository.LocalPath)\\artifacts\\NuGet.Versioning"
+    ArtifactName: "NuGet.Versioning pdbs"
+    ArtifactType: "Container"
+  condition: "succeeded()"
 
 - task: MSBuild@1
   displayName: "Ensure msbuild.exe can parse nuget.sln"
