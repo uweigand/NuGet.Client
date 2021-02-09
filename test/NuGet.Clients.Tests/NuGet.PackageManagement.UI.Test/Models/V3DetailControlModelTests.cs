@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -174,6 +175,67 @@ namespace NuGet.PackageManagement.UI.Test.Models
             };
 
             Assert.Equal(expectedVersions, actualVersions);
+        }
+        public interface IPropertyChangedEventHandler
+        {
+            void PropertyChanged(object sender, PropertyChangedEventArgs e);
+        }
+        [Fact]
+        public async Task SetCurrentPackageAsync_ClearVersions_Always()
+        {
+            // Arrange
+            NuGetVersion installedVersion = NuGetVersion.Parse("1.0.0");
+
+            var testVersions = new List<VersionInfoContextInfo>() {
+                new VersionInfoContextInfo(new NuGetVersion("1.0.0")),
+                new VersionInfoContextInfo(new NuGetVersion("1.0.1")),
+            };
+
+            Mock<IPropertyChangedEventHandler> mockPropertyChangedEventHandler = new Mock<IPropertyChangedEventHandler>();
+
+            var vm = new Mock<PackageItemListViewModel>();
+            vm.Object.InstalledVersion = installedVersion;
+            vm.Object.Version = installedVersion;
+            vm.Object.Versions = new Lazy<Task<IReadOnlyCollection<VersionInfoContextInfo>>>(() => Task.FromResult<IReadOnlyCollection<VersionInfoContextInfo>>(testVersions));
+
+
+            _testInstance.PropertyChanged += mockPropertyChangedEventHandler.Object.PropertyChanged;
+            //vm.VerifySet(x => x.Versions =
+            //It.Is<Lazy<Task<IReadOnlyCollection<VersionInfoContextInfo>>>>(x => x.Value = It.Is<IReadOnlyCollection<VersionInfoContextInfo>>(l => l.Count == 0)));
+
+            //bool getVersionsStarted = false;
+            //vm.Setup(x => x.GetVersionsAsync()).Callback(() =>
+            //{
+            //    mockPropertyChangedEventHandler.Verify(x => x.PropertyChanged(
+            //    It.<DetailControlModel>(),
+            //    It.Is<PropertyChangedEventArgs>(e => e.PropertyName == nameof(DetailControlModel.Versions))), Times.Once);
+            //});
+
+
+            // Verify setter called with specific value
+            var emptyList = new List<VersionInfoContextInfo>();
+            var emptyLazyTaskList = new Lazy<Task<IReadOnlyCollection<VersionInfoContextInfo>>>(() => Task.FromResult<IReadOnlyCollection<VersionInfoContextInfo>>(emptyList));
+            // vm.VerifySet(x => x.Versions = emptyLazyTaskList);
+
+            //vm.Setup(x => x.rai)
+
+           
+
+            // Act
+
+            await _testInstance.SetCurrentPackageAsync(
+                vm.Object,
+                ItemFilter.All,
+                () => vm.Object);
+
+            // Assert
+            mockPropertyChangedEventHandler.Verify(x => x.PropertyChanged(
+            It.IsAny<DetailControlModel>(),
+            It.Is<PropertyChangedEventArgs>(e => e.PropertyName == nameof(DetailControlModel.Versions))), Times.Once);
+
+            //Versions was populated
+            //Versions was cleared and property changed raised.
+
         }
 
 

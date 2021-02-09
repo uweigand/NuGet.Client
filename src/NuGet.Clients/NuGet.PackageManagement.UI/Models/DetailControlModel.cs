@@ -121,6 +121,7 @@ namespace NuGet.PackageManagement.UI
             Func<PackageItemListViewModel> getPackageItemListViewModel)
         {
             // Clear old data
+            ClearVersions();
             PackageMetadata = null;
             _metadataDict.Clear();
 
@@ -633,6 +634,12 @@ namespace NuGet.PackageManagement.UI
                     possibleVersions.FirstOrDefault(v => v.Version.Equals(_searchResultPackage.InstalledVersion))
                     ?? possibleVersions.FirstOrDefault(v => v.IsValidVersion);
             }
+        }
+
+        public void ClearVersions()
+        {
+            _versions = new List<DisplayVersion>();
+            OnPropertyChanged(nameof(Versions));
         }
 
         public abstract bool IsSolution { get; }
