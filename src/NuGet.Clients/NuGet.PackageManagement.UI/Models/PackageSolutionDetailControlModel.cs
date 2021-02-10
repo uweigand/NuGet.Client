@@ -262,8 +262,6 @@ namespace NuGet.PackageManagement.UI
 
             SelectVersion();
 
-            await Task.Delay(5000);
-
             OnPropertyChanged(nameof(Versions));
         }
 
