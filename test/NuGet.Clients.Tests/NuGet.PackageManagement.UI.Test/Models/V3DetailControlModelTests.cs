@@ -181,21 +181,23 @@ namespace NuGet.PackageManagement.UI.Test.Models
         public async Task SetCurrentPackageAsync_ClearVersions_Always()
         {
             // Arrange
-            NuGetVersion installedVersion = NuGetVersion.Parse("1.0.0");
+            var installedVersion = NuGetVersion.Parse("1.0.0");
 
             var testVersions = new List<VersionInfoContextInfo>() {
                 new VersionInfoContextInfo(new NuGetVersion("1.0.0")),
                 new VersionInfoContextInfo(new NuGetVersion("1.0.1")),
             };
 
-            Mock<IPropertyChangedEventHandler> mockPropertyChangedEventHandler = new Mock<IPropertyChangedEventHandler>();
+            var mockPropertyChangedEventHandler = new Mock<IPropertyChangedEventHandler>();
+            var wasVersionsListCleared = false;
 
             var vm = new Mock<PackageItemListViewModel>();
             vm.Object.InstalledVersion = installedVersion;
             vm.Object.Version = installedVersion;
             vm.Object.Versions = new Lazy<Task<IReadOnlyCollection<VersionInfoContextInfo>>>(() => Task.FromResult<IReadOnlyCollection<VersionInfoContextInfo>>(testVersions));
 
-            bool wasVersionsListCleared = false;
+            // Test Setup already selected a package.
+            int previousVersionListCount = _testInstance.Versions.Count;
 
             mockPropertyChangedEventHandler.Setup(x => x.PropertyChanged(
                 It.IsAny<object>(),
@@ -216,6 +218,7 @@ namespace NuGet.PackageManagement.UI.Test.Models
 
             // Act
 
+            //Select a different VM which should clear the Versions list from the previous selection.
             await _testInstance.SetCurrentPackageAsync(
                 vm.Object,
                 ItemFilter.All,
@@ -223,14 +226,8 @@ namespace NuGet.PackageManagement.UI.Test.Models
 
             // Assert
 
-            //Versions was populated...
-            //Versions was cleared and property changed raised...
-
+            Assert.True(previousVersionListCount > 0, "Test setup did not pre-populate versions list.");
             Assert.True(wasVersionsListCleared, "Versions list was not cleared.");
-
-            //mockPropertyChangedEventHandler.Verify(x => x.PropertyChanged(
-            //  It.Is<object>(obj => (obj as DetailControlModel).Versions.Count == 0),
-            //  It.Is<PropertyChangedEventArgs>(e => e.PropertyName == nameof(DetailControlModel.Versions))), Times.Once);
         }
 
 
@@ -358,21 +355,23 @@ namespace NuGet.PackageManagement.UI.Test.Models
         public async Task SetCurrentPackageAsync_ClearVersions_Always()
         {
             // Arrange
-            NuGetVersion installedVersion = NuGetVersion.Parse("1.0.0");
+            var installedVersion = NuGetVersion.Parse("1.0.0");
 
             var testVersions = new List<VersionInfoContextInfo>() {
                 new VersionInfoContextInfo(new NuGetVersion("1.0.0")),
                 new VersionInfoContextInfo(new NuGetVersion("1.0.1")),
             };
 
-            Mock<IPropertyChangedEventHandler> mockPropertyChangedEventHandler = new Mock<IPropertyChangedEventHandler>();
+            var mockPropertyChangedEventHandler = new Mock<IPropertyChangedEventHandler>();
+            var wasVersionsListCleared = false;
 
             var vm = new Mock<PackageItemListViewModel>();
             vm.Object.InstalledVersion = installedVersion;
             vm.Object.Version = installedVersion;
             vm.Object.Versions = new Lazy<Task<IReadOnlyCollection<VersionInfoContextInfo>>>(() => Task.FromResult<IReadOnlyCollection<VersionInfoContextInfo>>(testVersions));
 
-            bool wasVersionsListCleared = false;
+            // Test Setup already selected a package.
+            int previousVersionListCount = _testInstance.Versions.Count;
 
             mockPropertyChangedEventHandler.Setup(x => x.PropertyChanged(
                 It.IsAny<object>(),
@@ -393,6 +392,7 @@ namespace NuGet.PackageManagement.UI.Test.Models
 
             // Act
 
+            //Select a different VM which should clear the Versions list from the previous selection.
             await _testInstance.SetCurrentPackageAsync(
                 vm.Object,
                 ItemFilter.All,
@@ -400,14 +400,8 @@ namespace NuGet.PackageManagement.UI.Test.Models
 
             // Assert
 
-            //Versions was populated...
-            //Versions was cleared and property changed raised...
-
+            Assert.True(previousVersionListCount > 0, "Test setup did not pre-populate versions list.");
             Assert.True(wasVersionsListCleared, "Versions list was not cleared.");
-
-            //mockPropertyChangedEventHandler.Verify(x => x.PropertyChanged(
-            //  It.Is<object>(obj => (obj as DetailControlModel).Versions.Count == 0),
-            //  It.Is<PropertyChangedEventArgs>(e => e.PropertyName == nameof(DetailControlModel.Versions))), Times.Once);
         }
     }
 
