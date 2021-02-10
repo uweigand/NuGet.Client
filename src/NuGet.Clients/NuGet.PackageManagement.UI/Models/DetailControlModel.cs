@@ -638,7 +638,10 @@ namespace NuGet.PackageManagement.UI
 
         public void ClearVersions()
         {
-            _versions = new List<DisplayVersion>();
+            if (_versions != null)
+            {
+                _versions.Clear();
+            }
             OnPropertyChanged(nameof(Versions));
         }
 
