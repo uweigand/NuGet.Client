@@ -50,6 +50,28 @@ namespace NuGet.PackageManagement.UI.Test.Models
                 Sources = new List<PackageSourceContextInfo> { new PackageSourceContextInfo("nuget.psm.test") },
             };
         }
+
+        /// <summary>
+        /// Due to embedding the types we need to compare based on IsEquivalentTo
+        /// </summary>
+        protected class TypeEquivalenceComparer : IEqualityComparer<Type>
+        {
+            public static readonly TypeEquivalenceComparer Instance = new TypeEquivalenceComparer();
+
+            private TypeEquivalenceComparer()
+            {
+            }
+
+            public bool Equals(Type x, Type y)
+            {
+                return x.IsEquivalentTo(y);
+            }
+
+            public int GetHashCode(Type obj)
+            {
+                return obj.GUID.GetHashCode();
+            }
+        }
     }
 
     public class V3PackageDetailControlModelTests : V3DetailControlModelTestBase, IAsyncServiceProvider
@@ -247,37 +269,45 @@ namespace NuGet.PackageManagement.UI.Test.Models
         public interface IBrokeredServiceContainerMock : SVsBrokeredServiceContainer, IBrokeredServiceContainer
         {
         }
-
-        /// <summary>
-        /// Due to embedding the types we need to compare based on IsEquivalentTo
-        /// </summary>
-        private class TypeEquivalenceComparer : IEqualityComparer<Type>
-        {
-            public static readonly TypeEquivalenceComparer Instance = new TypeEquivalenceComparer();
-
-            private TypeEquivalenceComparer()
-            {
-            }
-
-            public bool Equals(Type x, Type y)
-            {
-                return x.IsEquivalentTo(y);
-            }
-
-            public int GetHashCode(Type obj)
-            {
-                return obj.GUID.GetHashCode();
-            }
-        }
     }
 
-    public class V3PackageSolutionDetailControlModelTests : V3DetailControlModelTestBase
+    public class V3PackageSolutionDetailControlModelTests : V3DetailControlModelTestBase, IAsyncServiceProvider
     {
         private PackageSolutionDetailControlModel _testInstance;
-
+        private readonly Dictionary<Type, Task<object>> _services = new Dictionary<Type, Task<object>>(TypeEquivalenceComparer.Instance);
         public V3PackageSolutionDetailControlModelTests(GlobalServiceProvider sp, V3PackageSearchMetadataFixture testData)
             : base(sp, testData)
         {
+            var packageSearchMetadata = new List<PackageSearchMetadataContextInfo>()
+            {
+                PackageSearchMetadataContextInfo.Create(_testData.TestData)
+            };
+
+            var mockSearchService = new Mock<INuGetSearchService>();
+            mockSearchService.Setup(x =>
+                x.GetPackageMetadataListAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<IReadOnlyCollection<PackageSourceContextInfo>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(new ValueTask<IReadOnlyCollection<PackageSearchMetadataContextInfo>>(packageSearchMetadata));
+
+            mockSearchService.Setup(x =>
+                x.GetDeprecationMetadataAsync(
+                    It.IsAny<PackageIdentity>(),
+                    It.IsAny<IReadOnlyCollection<PackageSourceContextInfo>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(null);
+
+            mockSearchService.Setup(x => x.GetPackageMetadataAsync(
+                    It.IsAny<PackageIdentity>(),
+                    It.IsAny<IReadOnlyCollection<PackageSourceContextInfo>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(new ValueTask<(PackageSearchMetadataContextInfo, PackageDeprecationMetadataContextInfo)>((packageSearchMetadata[0], null)));
+
             var solMgr = new Mock<INuGetSolutionManagerService>();
             var serviceBroker = new Mock<IServiceBroker>();
             var projectManagerService = new Mock<INuGetProjectManagerService>();
@@ -286,7 +316,15 @@ namespace NuGet.PackageManagement.UI.Test.Models
 #pragma warning disable ISB001 // Dispose of proxies
             serviceBroker.Setup(x => x.GetProxyAsync<INuGetProjectManagerService>(It.Is<ServiceJsonRpcDescriptor>(d => d.Moniker == NuGetServices.ProjectManagerService.Moniker), It.IsAny<ServiceActivationOptions>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(projectManagerService.Object);
+            serviceBroker.Setup(
+                x => x.GetProxyAsync<INuGetSearchService>(
+                    NuGetServices.SearchService,
+                    It.IsAny<ServiceActivationOptions>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(new ValueTask<INuGetSearchService>(mockSearchService.Object));
 #pragma warning restore ISB001 // Dispose of proxies
+
+            ServiceLocator.InitializePackageServiceProvider(this);
 
             NuGetUIThreadHelper.JoinableTaskFactory.Run(async () =>
             {
@@ -296,7 +334,22 @@ namespace NuGet.PackageManagement.UI.Test.Models
                     packageManagerProviders: new List<IVsPackageManagerProvider>(),
                     serviceBroker: serviceBroker.Object,
                     CancellationToken.None);
+
+                _testInstance.SetCurrentPackageAsync(
+                    _testViewModel,
+                    ItemFilter.All,
+                    () => null).Wait();
             });
+        }
+
+        public Task<object> GetServiceAsync(Type serviceType)
+        {
+            if (_services.TryGetValue(serviceType, out Task<object> task))
+            {
+                return task;
+            }
+
+            return Task.FromResult<object>(null);
         }
 
         [Fact]
