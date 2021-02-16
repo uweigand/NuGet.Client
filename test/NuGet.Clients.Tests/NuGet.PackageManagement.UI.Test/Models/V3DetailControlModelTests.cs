@@ -335,10 +335,10 @@ namespace NuGet.PackageManagement.UI.Test.Models
                     serviceBroker: serviceBroker.Object,
                     CancellationToken.None);
 
-                _testInstance.SetCurrentPackageAsync(
+                await _testInstance.SetCurrentPackageAsync(
                     _testViewModel,
                     ItemFilter.All,
-                    () => null).Wait();
+                    () => null);
             });
         }
 
