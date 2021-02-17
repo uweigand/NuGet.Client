@@ -90,9 +90,14 @@ namespace NuGet.SolutionRestoreManager
             dgSpec.AddRestore(packageSpec.Name);
             _projectSystemCache.AddProjectRestoreInfo(projectNames, dgSpec, new List<IAssetsLogMessage>());
 
+            TelemetryActivity.EmitTelemetryEvent(
+                new RestoreNominationEvent(
+                    "restoreNomination",
+                    projectUniqueName));
+
             // returned task completes when scheduled restore operation completes.
             var restoreTask = _restoreWorker.ScheduleRestoreAsync(
-                SolutionRestoreRequest.OnUpdate(),
+                SolutionRestoreRequest.OnUpdate(projectUniqueName),
                 token);
 
             return await restoreTask;
@@ -186,9 +191,14 @@ namespace NuGet.SolutionRestoreManager
 
                 _projectSystemCache.AddProjectRestoreInfo(projectNames, dgSpec, nominationErrors);
 
+                TelemetryActivity.EmitTelemetryEvent(
+                    new RestoreNominationEvent(
+                        "restoreNomination",
+                        projectUniqueName));
+
                 // returned task completes when scheduled restore operation completes.
                 var restoreTask = _restoreWorker.ScheduleRestoreAsync(
-                    SolutionRestoreRequest.OnUpdate(),
+                    SolutionRestoreRequest.OnUpdate(projectUniqueName),
                     token);
 
                 return await restoreTask;

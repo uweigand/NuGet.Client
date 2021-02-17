@@ -2,8 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,7 +36,10 @@ namespace NuGet.SolutionRestoreManager
         private const int RequestQueueLimit = 150;
         private const int PromoteAttemptsLimit = 150;
         private const int DelaySolutionLoadRetry = 100;
-        private const int MaxIdleWaitTimeMs = 10000;
+        private const int MaxIdleWaitTimeMs = 20000;
+
+        //private static int dispose = 0;
+        //private static int maxDispose = 1;
 
         private readonly object _lockPendingRequestsObj = new object();
 
@@ -428,6 +434,8 @@ namespace NuGet.SolutionRestoreManager
             // Hops onto a background pool thread
             await TaskScheduler.Default;
 
+            var nominatedProjects = new List<string>();
+            string restoreReason = default;
             var status = false;
             // Check if the solution is fully loaded
             while (!_solutionLoadedEvent.IsSet)
@@ -456,6 +464,7 @@ namespace NuGet.SolutionRestoreManager
                     // if no pending restore requests then shut down the restore job runner.
                     if (_pendingRequests.Value.Count == 0)
                     {
+                        restoreReason = "No pending restores";
                         break;
                     }
                 }
@@ -463,11 +472,21 @@ namespace NuGet.SolutionRestoreManager
                 // Grabs a local copy of pending restore operation
                 using (var restoreOperation = _pendingRestore)
                 {
+                    // Prep to start a bulk file operation
+                    BulkFileOperationData bulkFileOperation = ExperimentalFeatures.IsEnabled(ExperimentalFeatures.BulkFileOperationGlobal) ?
+                                                      await StartBulkFileOperation(new List<string>(), new List<string>(), token) :
+                                                      null;
+                    var blockedOnBulkFileOperation = bulkFileOperation == null ? false : true;
                     try
                     {
                         // Blocks the execution until first request is scheduled
                         // Monitors the cancelllation token as well.
                         var request = _pendingRequests.Value.Take(token);
+
+                        if (request.RestoreSource == RestoreOperationSource.Implicit)
+                        {
+                            nominatedProjects.Add(request.Project);
+                        }
 
                         token.ThrowIfCancellationRequested();
 
@@ -480,33 +499,50 @@ namespace NuGet.SolutionRestoreManager
 
                         // Drains the queue
                         while (!_pendingRequests.Value.IsCompleted
-                            && !token.IsCancellationRequested)
+                            && !token.IsCancellationRequested
+                            && blockedOnBulkFileOperation)
                         {
                             SolutionRestoreRequest next;
-
-                            // check if there are pending nominations
-                            var isAllProjectsNominated = await _solutionManager.Value.IsAllProjectsNominatedAsync();
 
                             // Try to get a request without a timeout. We don't want to *block* the threadpool thread.
                             if (!_pendingRequests.Value.TryTake(out next, millisecondsTimeout: 0, token))
                             {
+                                // check if there are pending nominations
+                                var isAllProjectsNominated = await _solutionManager.Value.IsAllProjectsNominatedAsync();
+
                                 if (isAllProjectsNominated)
                                 {
                                     // if we've got all the nominations then continue with the auto restore
-                                    break;
-                                }
-                                else
-                                {
-                                    // Break if we've waited for more than 10s without an actual nomination.
-                                    if (lastNominationReceived.AddMilliseconds(MaxIdleWaitTimeMs) < DateTime.UtcNow)
+                                    restoreReason += "All projects nominated. Queue drained";
+
+                                    if(await TryStartBulkFileOperation(bulkFileOperation, token))
                                     {
                                         break;
                                     }
-                                    await Task.Delay(IdleTimeoutMs, token);
                                 }
+                                else
+                                {
+                                    // Break if we've waited for more than the max idle time without an actual nomination.
+                                    if (lastNominationReceived.AddMilliseconds(MaxIdleWaitTimeMs) < DateTime.UtcNow)
+                                    {
+                                        restoreReason += $"Waited for more than 20s, {lastNominationReceived} {DateTime.UtcNow}";
+                                        if (await TryStartBulkFileOperation(bulkFileOperation, token))
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                await Task.Delay(IdleTimeoutMs, token);
                             }
                             else
                             {
+                                // The upgrading is weird. We still have to wait for the BFO.
+                                // Let's ignore it for now.
+                                if (next.RestoreSource == RestoreOperationSource.Implicit)
+                                {
+                                    nominatedProjects.Add(next.Project);
+                                }
+
                                 lastNominationReceived = DateTime.UtcNow;
                                 // Upgrade request if necessary
                                 if (next != null && next.RestoreSource != request.RestoreSource)
@@ -515,7 +551,9 @@ namespace NuGet.SolutionRestoreManager
                                     // Explicit is always preferred.
                                     request = new SolutionRestoreRequest(
                                         next.ForceRestore || request.ForceRestore,
-                                        RestoreOperationSource.Explicit);
+                                        RestoreOperationSource.Explicit,
+                                        "Explicit");
+                                    restoreReason += "Explicit restore request received";
 
                                     // we don't want to delay explicit solution restore request so just break at this time.
                                     break;
@@ -532,7 +570,20 @@ namespace NuGet.SolutionRestoreManager
 
                         token.ThrowIfCancellationRequested();
 
+                        if (bulkFileOperation != null)
+                        {
+                            var timeSpentWaitingForBulkFileOperation = bulkFileOperation.BulkFileOperationAcquisition.Subtract(bulkFileOperation.BulkFileOperationFirstAttempt).TotalMilliseconds;
+                            timeSpentWaitingForBulkFileOperation = timeSpentWaitingForBulkFileOperation < 0 ? 0 : timeSpentWaitingForBulkFileOperation;
+                            restoreReason += (Environment.NewLine + timeSpentWaitingForBulkFileOperation + "ms");
+                        }
                         // Runs restore job with scheduled request params
+                        Common.TelemetryActivity.EmitTelemetryEvent(
+                            new RestoreStartEvent(
+                                "restoretrigger",
+                                nominatedProjects,
+                                DateTime.UtcNow,
+                                restoreReason));
+
                         status = await ProcessRestoreRequestAsync(restoreOperation, request, token);
 
                         // Repeats...
@@ -547,10 +598,68 @@ namespace NuGet.SolutionRestoreManager
                         Logger.LogError(e.ToString());
                         // Do not die just yet
                     }
+                    finally
+                    {
+                        if (bulkFileOperation.BulkFileOperation != null)
+                        {
+                            // TODO NK - Can this throw? Can this API please be documented?
+                            await bulkFileOperation.BulkFileOperation.EndAsync();
+                            bulkFileOperation.BulkFileOperation.Dispose();
+                        }
+                    }
+
                 }
             }
 
             return status;
+        }
+
+        private static async Task<bool> TryStartBulkFileOperation(BulkFileOperationData bulkFileOperation, CancellationToken token)
+        {
+            var started = true;
+            if (bulkFileOperation.BulkFileOperation != null)
+            {
+                var currentTime = DateTime.UtcNow;
+                if (!bulkFileOperation.AttemptedToStart)
+                {
+                    bulkFileOperation.AttemptedToStart = true;
+                    bulkFileOperation.BulkFileOperationFirstAttempt = currentTime;
+                }
+                try
+                {
+                    // TODO NK - The behavior of this API is not well document. If we need to coordinate we need to know the exact behavior.
+                    await bulkFileOperation.BulkFileOperation.BeginAsync(token);
+                    bulkFileOperation.BulkFileOperationAcquisition = currentTime;
+                    started = true;
+                }
+                catch
+                {
+                    started = false;
+                }
+            }
+            return started;
+        }
+
+        private static async Task<BulkFileOperationData> StartBulkFileOperation(List<string> changingFiles, List<string> changingFolders, CancellationToken token)
+        {
+            await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var bulkFileOperation = await BulkFileOperation.QueryBulkFileOperationAsync(changingFiles, changingFolders, token);
+
+            var data = new BulkFileOperationData()
+            {
+                BulkFileOperation = bulkFileOperation
+            };
+
+            return data;
+        }
+
+        class BulkFileOperationData
+        {
+            public BulkFileOperation BulkFileOperation { get; set; }
+            public DateTime BulkFileOperationFirstAttempt { get; set; }
+            public DateTime BulkFileOperationAcquisition { get; set; }
+
+            public bool AttemptedToStart { get; set; } = false;
         }
 
         private async Task<bool> ProcessRestoreRequestAsync(
@@ -565,6 +674,7 @@ namespace NuGet.SolutionRestoreManager
 
             // Start the restore job in a separate task on a background thread
             // it will switch into main thread when necessary.
+
             var joinableTask = JoinableTaskFactory.RunAsync(
             () => StartRestoreJobAsync(request, isSolutionLoadRestore, token));
 

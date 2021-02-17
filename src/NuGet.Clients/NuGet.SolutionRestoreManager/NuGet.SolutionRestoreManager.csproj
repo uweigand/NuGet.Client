@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build">
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.legacy.props" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -31,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BrokeredServicesUtility.cs" />
+    <Compile Include="ExperimentalFeatures.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Guids.cs" />
     <Compile Include="ISolutionRestoreChecker.cs" />
@@ -42,6 +43,8 @@
     <Compile Include="RestoreManagerPackage.cs" />
     <Compile Include="RestoreOperationLogger.cs" />
     <Compile Include="RestoreOperationProgressUI.cs" />
+    <Compile Include="RestoreNominationEvent.cs" />
+    <Compile Include="RestoreStartEvent.cs" />
     <Compile Include="SolutionRestoreBuildHandler.cs" />
     <Compile Include="SolutionRestoreCommand.cs" />
     <Compile Include="Resources.Designer.cs">

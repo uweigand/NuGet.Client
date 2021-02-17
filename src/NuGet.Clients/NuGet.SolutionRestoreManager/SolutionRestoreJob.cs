@@ -405,76 +405,107 @@ namespace NuGet.SolutionRestoreManager
                     }
                 }
 
-                using (intervalTracker.Start(RestoreTelemetryEvent.PackageReferenceRestoreDuration))
+                BulkFileOperation bulkFileOperation = default;
+
+                try
                 {
-                    // Avoid restoring if all the projects are up to date, or the solution does not have build integrated projects.
-                    if (DependencyGraphRestoreUtility.IsRestoreRequired(dgSpec))
+                    if (ExperimentalFeatures.IsEnabled(ExperimentalFeatures.BulkFileOperationGranular))
                     {
-                        // NOTE: During restore for build integrated projects,
-                        //       We might show the dialog even if there are no packages to restore
-                        // When both currentStep and totalSteps are 0, we get a marquee on the dialog
-                        await _logger.RunWithProgressAsync(
-                            async (l, _, t) =>
+                        var changingFiles = new List<string>();
+                        var changingFolders = new List<string>();
+
+                        foreach (var projectSpec in dgSpec.Projects)
+                        {
+                            if (dgSpec.Restore.Contains(projectSpec.RestoreMetadata.ProjectUniqueName))
                             {
-                                // Display the restore opt out message if it has not been shown yet
-                                await l.WriteHeaderAsync();
+                                changingFolders.Add(projectSpec.RestoreMetadata.OutputPath);
+                            }
+                        }
+                        bulkFileOperation = await StartBulkFileOperation(changingFiles, changingFolders, token);
+                        await bulkFileOperation.BeginAsync(token);
+                        // The problem here is that if we have to wait, it'll count toward the total restore time.
+                    }
 
-                                var sources = _sourceRepositoryProvider
-                                    .GetRepositories()
-                                    .ToList();
 
-                                var providerCache = new RestoreCommandProvidersCache();
-                                Action<SourceCacheContext> cacheModifier = (cache) => { };
-
-                                var isRestoreOriginalAction = true;
-                                var isRestoreSucceeded = true;
-                                IReadOnlyList<RestoreSummary> restoreSummaries = null;
-                                try
+                    using (intervalTracker.Start(RestoreTelemetryEvent.PackageReferenceRestoreDuration))
+                    {
+                        // Avoid restoring if all the projects are up to date, or the solution does not have build integrated projects.
+                        if (DependencyGraphRestoreUtility.IsRestoreRequired(dgSpec))
+                        {
+                            // NOTE: During restore for build integrated projects,
+                            //       We might show the dialog even if there are no packages to restore
+                            // When both currentStep and totalSteps are 0, we get a marquee on the dialog
+                            await _logger.RunWithProgressAsync(
+                                async (l, _, t) =>
                                 {
-                                    restoreSummaries = await DependencyGraphRestoreUtility.RestoreAsync(
-                                       _solutionManager,
-                                       dgSpec,
-                                       cacheContext,
-                                       providerCache,
-                                       cacheModifier,
-                                       sources,
-                                       _nuGetProjectContext.OperationId,
-                                       forceRestore,
-                                       isRestoreOriginalAction,
-                                       additionalMessages,
-                                       l,
-                                       t);
+                                    // Display the restore opt out message if it has not been shown yet
+                                    await l.WriteHeaderAsync();
 
-                                    _packageCount += restoreSummaries.Select(summary => summary.InstallCount).Sum();
-                                    isRestoreSucceeded = restoreSummaries.All(summary => summary.Success == true);
-                                    _noOpProjectsCount += restoreSummaries.Where(summary => summary.NoOpRestore == true).Count();
-                                    _solutionUpToDateChecker.SaveRestoreStatus(restoreSummaries);
-                                }
-                                catch
-                                {
-                                    isRestoreSucceeded = false;
-                                    throw;
-                                }
-                                finally
-                                {
-                                    if (isRestoreSucceeded)
+                                    var sources = _sourceRepositoryProvider
+                                        .GetRepositories()
+                                        .ToList();
+
+                                    var providerCache = new RestoreCommandProvidersCache();
+                                    Action<SourceCacheContext> cacheModifier = (cache) => { };
+
+                                    var isRestoreOriginalAction = true;
+                                    var isRestoreSucceeded = true;
+                                    IReadOnlyList<RestoreSummary> restoreSummaries = null;
+                                    try
                                     {
-                                        if (_noOpProjectsCount < restoreSummaries.Count)
+                                        restoreSummaries = await DependencyGraphRestoreUtility.RestoreAsync(
+                                           _solutionManager,
+                                           dgSpec,
+                                           cacheContext,
+                                           providerCache,
+                                           cacheModifier,
+                                           sources,
+                                           _nuGetProjectContext.OperationId,
+                                           forceRestore,
+                                           isRestoreOriginalAction,
+                                           additionalMessages,
+                                           l,
+                                           t);
+
+                                        _packageCount += restoreSummaries.Select(summary => summary.InstallCount).Sum();
+                                        isRestoreSucceeded = restoreSummaries.All(summary => summary.Success == true);
+                                        _noOpProjectsCount += restoreSummaries.Where(summary => summary.NoOpRestore == true).Count();
+                                        _solutionUpToDateChecker.SaveRestoreStatus(restoreSummaries);
+                                    }
+                                    catch
+                                    {
+                                        isRestoreSucceeded = false;
+                                        throw;
+                                    }
+                                    finally
+                                    {
+                                        if (isRestoreSucceeded)
                                         {
-                                            _status = NuGetOperationStatus.Succeeded;
+                                            if (_noOpProjectsCount < restoreSummaries.Count)
+                                            {
+                                                _status = NuGetOperationStatus.Succeeded;
+                                            }
+                                            else
+                                            {
+                                                _status = NuGetOperationStatus.NoOp;
+                                            }
                                         }
                                         else
                                         {
-                                            _status = NuGetOperationStatus.NoOp;
+                                            _status = NuGetOperationStatus.Failed;
                                         }
                                     }
-                                    else
-                                    {
-                                        _status = NuGetOperationStatus.Failed;
-                                    }
-                                }
-                            },
-                            token);
+                                },
+                                token);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (bulkFileOperation != null)
+                    {
+                        await bulkFileOperation.EndAsync();
+                        bulkFileOperation.Dispose();
                     }
                 }
             }
@@ -482,6 +513,13 @@ namespace NuGet.SolutionRestoreManager
             {
                 _logger.ShowError(Resources.PackageRefNotRestoredBecauseOfNoConsent);
             }
+        }
+
+        private static async Task<BulkFileOperation> StartBulkFileOperation(List<string> changingFiles, List<string> changingFolders, CancellationToken token)
+        {
+            await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var bulkFileOperation = await BulkFileOperation.QueryBulkFileOperationAsync(changingFiles, changingFolders, token);
+            return bulkFileOperation;
         }
 
         // This event could be raised from multiple threads. Only perform thread-safe operations
