@@ -468,6 +468,7 @@ namespace NuGet.SolutionRestoreManager
                         break;
                     }
                 }
+                restoreReason = string.Empty;
 
                 // Grabs a local copy of pending restore operation
                 using (var restoreOperation = _pendingRestore)
@@ -574,7 +575,7 @@ namespace NuGet.SolutionRestoreManager
                         {
                             var timeSpentWaitingForBulkFileOperation = bulkFileOperation.BulkFileOperationAcquisition.Subtract(bulkFileOperation.BulkFileOperationFirstAttempt).TotalMilliseconds;
                             timeSpentWaitingForBulkFileOperation = timeSpentWaitingForBulkFileOperation < 0 ? 0 : timeSpentWaitingForBulkFileOperation;
-                            restoreReason += (Environment.NewLine + timeSpentWaitingForBulkFileOperation + "ms");
+                            restoreReason += (Environment.NewLine + timeSpentWaitingForBulkFileOperation + "ms") + (Environment.NewLine + "Thread ID: " + Thread.CurrentThread.ManagedThreadId + " Threadpool: " + Thread.CurrentThread.IsThreadPoolThread);
                         }
                         // Runs restore job with scheduled request params
                         Common.TelemetryActivity.EmitTelemetryEvent(
