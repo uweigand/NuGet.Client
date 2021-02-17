@@ -10,12 +10,11 @@ namespace NuGet.SolutionRestoreManager
     class RestoreStartEvent : TelemetryEvent
     {
         public RestoreStartEvent(
-            string eventName,
             List<string> projectIds,
             DateTimeOffset startTime,
             string restoreReason
             ) :
-            base(eventName, new Dictionary<string, object>
+            base("restoretrigger", new Dictionary<string, object>
                 {
                     { nameof(RestoreReason), restoreReason },
                     { nameof(StartTime), startTime.UtcDateTime.ToString("O") },

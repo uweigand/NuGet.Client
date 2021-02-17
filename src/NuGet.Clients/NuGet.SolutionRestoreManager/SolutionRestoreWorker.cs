@@ -37,6 +37,7 @@ namespace NuGet.SolutionRestoreManager
         private const int PromoteAttemptsLimit = 150;
         private const int DelaySolutionLoadRetry = 100;
         private const int MaxIdleWaitTimeMs = 20000;
+        private const int MaxSlidingWindowWaitTime = 1000;
 
         //private static int dispose = 0;
         //private static int maxDispose = 1;
@@ -435,7 +436,6 @@ namespace NuGet.SolutionRestoreManager
             await TaskScheduler.Default;
 
             var nominatedProjects = new List<string>();
-            string restoreReason = default;
             var status = false;
             // Check if the solution is fully loaded
             while (!_solutionLoadedEvent.IsSet)
@@ -459,6 +459,8 @@ namespace NuGet.SolutionRestoreManager
             // Loops until there are pending restore requests or it's get cancelled
             while (!token.IsCancellationRequested)
             {
+                string restoreReason = default;
+
                 lock (_lockPendingRequestsObj)
                 {
                     // if no pending restore requests then shut down the restore job runner.
@@ -468,7 +470,6 @@ namespace NuGet.SolutionRestoreManager
                         break;
                     }
                 }
-                restoreReason = string.Empty;
 
                 // Grabs a local copy of pending restore operation
                 using (var restoreOperation = _pendingRestore)
@@ -513,12 +514,15 @@ namespace NuGet.SolutionRestoreManager
 
                                 if (isAllProjectsNominated)
                                 {
-                                    // if we've got all the nominations then continue with the auto restore
-                                    restoreReason += "All projects nominated. Queue drained";
-
-                                    if(await TryStartBulkFileOperation(bulkFileOperation, token))
+                                    // Wait for 800ms, just in case :)
+                                    if (lastNominationReceived.AddMilliseconds(MaxSlidingWindowWaitTime) < DateTime.UtcNow)
                                     {
-                                        break;
+                                        restoreReason += "All projects nominated. Queue drained";
+                                        if (await TryStartBulkFileOperation(bulkFileOperation, token))
+                                        {
+                                            // if we've got all the nominations then continue with the auto restore
+                                            break;
+                                        }
                                     }
                                 }
                                 else
@@ -575,12 +579,11 @@ namespace NuGet.SolutionRestoreManager
                         {
                             var timeSpentWaitingForBulkFileOperation = bulkFileOperation.BulkFileOperationAcquisition.Subtract(bulkFileOperation.BulkFileOperationFirstAttempt).TotalMilliseconds;
                             timeSpentWaitingForBulkFileOperation = timeSpentWaitingForBulkFileOperation < 0 ? 0 : timeSpentWaitingForBulkFileOperation;
-                            restoreReason += (Environment.NewLine + timeSpentWaitingForBulkFileOperation + "ms") + (Environment.NewLine + "Thread ID: " + Thread.CurrentThread.ManagedThreadId + " Threadpool: " + Thread.CurrentThread.IsThreadPoolThread);
+                            restoreReason += ((Environment.NewLine + timeSpentWaitingForBulkFileOperation + "ms") + " Thread ID: " + Thread.CurrentThread.ManagedThreadId + " Threadpool: " + Thread.CurrentThread.IsThreadPoolThread);
                         }
                         // Runs restore job with scheduled request params
                         Common.TelemetryActivity.EmitTelemetryEvent(
                             new RestoreStartEvent(
-                                "restoretrigger",
                                 nominatedProjects,
                                 DateTime.UtcNow,
                                 restoreReason));
