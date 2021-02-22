@@ -520,8 +520,6 @@ namespace NuGetConsole.Implementation
                 // force the UI to update the toolbar
                 VsUIShell.UpdateCommandUI(0 /* false = update UI asynchronously */);
             });
-
-            NuGetEventTrigger.Instance.TriggerEvent(NuGetEvent.PackageManagerConsoleLoaded);
         }
 
         private IWpfConsole _wpfConsole;
