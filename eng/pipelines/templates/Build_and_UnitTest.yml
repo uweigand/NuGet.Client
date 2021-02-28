@@ -96,6 +96,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:RestoreVS /p:BuildNumber=$(BuildNumber) /p:BuildRTM=$(BuildRTM) /v:m"
+    maximumCpuCount: true
 
 - task: MSBuild@1
   displayName: "Build for VS2019"
@@ -103,7 +104,8 @@ steps:
     solution: "build\\build.proj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
-    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /p:GitRepositoryRemoteName=$(gitRepositoryRemoteName) -m"
+    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /p:GitRepositoryRemoteName=$(gitRepositoryRemoteName)"
+    maximumCpuCount: true
 
 - task: MSBuild@1
   displayName: "Ensure msbuild.exe can parse nuget.sln"
@@ -112,6 +114,7 @@ steps:
     solution: "nuget.sln"
     msbuildVersion: "16.0"
     msbuildArguments: "/t:EnsureNewtonsoftJsonVersion"
+    maximumCpuCount: true
   condition: "and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))"  #skip this task for nonRTM in private build
 
 - task: MSBuild@1
@@ -121,6 +124,7 @@ steps:
     solution: "build\\build.proj"
     msbuildVersion: "16.0"
     msbuildArguments: "/t:EnsurePackageReferenceVersionsInSolution"
+    maximumCpuCount: true
   condition: "and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))"  #skip this task for nonRTM in private build
 
 
@@ -131,6 +135,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:AfterBuild"
+    maximumCpuCount: true
 
 - task: MSBuild@1
   displayName: "Build Final NuGet.exe (via ILMerge)"
@@ -139,6 +144,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:ILMergeNuGetExe /p:ExpectedLocalizedArtifactCount=$(LocalizedLanguageCount)"
+    maximumCpuCount: true
 
 - task: MSBuild@1
   displayName: "Publish NuGet.exe (ILMerged) into NuGet.CommandLine.Test (Mac tests use this)"
@@ -147,6 +153,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:CopyFinalNuGetExeToOutputPath"
+    maximumCpuCount: true
   condition: "and(succeeded(),eq(variables['BuildRTM'], 'false'))"
 
 - task: MSBuild@1
@@ -157,6 +164,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:CoreUnitTests;UnitTestsVS /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:TestResultOutputFormat=xml /p:SkipILMergeOfNuGetExe=true"
+    maximumCpuCount: true
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'true'), not(eq(variables['IsOfficialBuild'], 'true')))"
 
 - task: MSBuild@1
@@ -167,6 +175,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:CoreUnitTests;UnitTestsVS /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:TestResultOutputFormat=xml /p:SkipILMergeOfNuGetExe=true"
+    maximumCpuCount: true
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'true'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: PublishTestResults@2
@@ -212,6 +221,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:AfterBuild"
+    maximumCpuCount: true
   condition: and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))  #skip this task for nonRTM in private build
 
 - task: MSBuild@1
@@ -221,6 +231,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:Pack /p:BuildRTM=$(BuildRTM) /p:ExcludeTestProjects=$(BuildRTM) /p:BuildNumber=$(BuildNumber)"
+    maximumCpuCount: true
   condition: and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))  #skip this task for nonRTM in private build
 
 - task: MSBuild@1
@@ -230,6 +241,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:EnsurePackagesExist /p:ExcludeTestProjects=$(BuildRTM)"
+    maximumCpuCount: true
   condition: and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))  #skip this task for nonRTM in private build
 
 - task: MSBuild@1
@@ -239,6 +251,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:BuildVSIX /p:BuildRTM=$(BuildRTM) /p:ExcludeTestProjects=$(BuildRTM) /p:IsCIBuild=true"
+    maximumCpuCount: true
   condition: "and(succeeded(),eq(variables['BuildRTM'], 'false'))"
 
 - task: MSBuild@1
@@ -248,6 +261,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/p:BuildNumber=$(BuildNumber) /p:IsVsixBuild=true"
+    maximumCpuCount: true
   condition: " and(succeeded(), eq(variables['BuildRTM'], 'false'))"
 
 - task: MSBuild@1
@@ -257,6 +271,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/t:AfterBuild /p:SignPackages=true"
+    maximumCpuCount: true
   condition: and(succeeded(), or(eq(variables['IsOfficialBuild'], 'true'), eq(variables['BuildRTM'], 'true')))  #skip this task for nonRTM in private build
 
 - task: NuGetCommand@2
@@ -298,6 +313,7 @@ steps:
     solution: "setup\\Microsoft.VisualStudio.NuGet.Core.vsmanproj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
+    maximumCpuCount: true
   condition: " and(succeeded(),eq(variables['BuildRTM'], 'false')) "
 
 - task: MSBuild@1
@@ -306,6 +322,7 @@ steps:
     solution: "setup\\Microsoft.VisualStudio.NuGet.BuildTools.vsmanproj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
+    maximumCpuCount: true
   condition: " and(succeeded(),eq(variables['BuildRTM'], 'false')) "
 
 - task: PowerShell@1
@@ -384,6 +401,7 @@ steps:
     solution: 'build\NuGet.OptProfV2.runsettingsproj'
     msbuildVersion: '16.0'
     msbuildArguments: '/p:OutputPath="$(Build.Repository.LocalPath)\artifacts\RunSettings" /p:TestDrop="$(TestDrop)" /p:ProfilingInputsDrop="ProfilingInputs/$(System.TeamProject)/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildId)"'
+    maximumCpuCount: true
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: ms-vscs-artifact.build-tasks.artifactDropTask-1.artifactDropTask@0
@@ -449,6 +467,7 @@ steps:
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
     msbuildArguments: "/p:IsSymbolBuild=true /p:BuildRTM=$(BuildRTM)"
+    maximumCpuCount: true
   condition: " and(succeeded(), eq(variables['IsOfficialBuild'], 'true')) "
 
 - task: CopyFiles@2
